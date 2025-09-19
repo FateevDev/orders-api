@@ -3,6 +3,9 @@ package main
 import (
 	"context"
 	"fmt"
+	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/FateevDev/orders-api/application"
 )
@@ -10,7 +13,10 @@ import (
 func main() {
 	app := application.New()
 
-	err := app.Start(context.TODO())
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	err := app.Start(ctx)
 	if err != nil {
 		fmt.Println("failed to start app:", err)
 	}
