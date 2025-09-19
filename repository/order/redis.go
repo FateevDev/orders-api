@@ -33,9 +33,21 @@ func (r *RedisRepository) Insert(ctx context.Context, order model.Order) error {
 	}
 
 	key := orderIdKey(order.OrderID)
-	err = r.Client.SetNX(ctx, key, marshal, 0).Err()
 
+	txn := r.Client.TxPipeline()
+
+	err = txn.SetNX(ctx, key, marshal, 0).Err()
 	if err != nil {
+		txn.Discard()
+		return fmt.Errorf("failed to insert order: %w", err)
+	}
+
+	if err := txn.SAdd(ctx, "orders", key).Err(); err != nil {
+		txn.Discard()
+		return fmt.Errorf("failed to add order to set: %w", err)
+	}
+
+	if _, err := txn.Exec(ctx); err != nil {
 		return fmt.Errorf("failed to insert order: %w", err)
 	}
 
@@ -61,8 +73,13 @@ func (r *RedisRepository) FindById(ctx context.Context, id uint64) (model.Order,
 	return order, nil
 }
 
-func (r *RedisRepository) List(ctx context.Context) ([]model.Order, error) {
-	value, err := r.Client.GetRange(ctx, "order", 0, 100).Result()
+type FindAllPage struct {
+	Size   uint
+	Offest uint
+}
+
+func (r *RedisRepository) FindAll(ctx context.Context, p FindAllPage) ([]model.Order, error) {
+	value, err := r.Client.GetRange(ctx, "order", int64(p.Offest), int64(p.Offest*p.Size)).Result()
 
 	if errors.Is(err, redis.Nil) {
 		return nil, ErrOrdersNotFound()
@@ -81,11 +98,23 @@ func (r *RedisRepository) List(ctx context.Context) ([]model.Order, error) {
 }
 
 func (r *RedisRepository) Delete(ctx context.Context, id uint64) error {
-	err := r.Client.Del(ctx, orderIdKey(id)).Err()
+	txn := r.Client.TxPipeline()
+	result, err := txn.Del(ctx, orderIdKey(id)).Result()
 
 	if errors.Is(err, redis.Nil) {
+		txn.Discard()
 		return ErrOrderWithIdNotFound(id)
 	} else if err != nil {
+		txn.Discard()
+		return fmt.Errorf("failed to delete order: %w", err)
+	}
+
+	if result == 0 {
+		txn.Discard()
+		return ErrOrderWithIdNotFound(id)
+	}
+
+	if _, err := txn.Exec(ctx); err != nil {
 		return fmt.Errorf("failed to delete order: %w", err)
 	}
 
