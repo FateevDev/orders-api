@@ -33,10 +33,18 @@ func (a *App) Start(ctx context.Context) error {
 		return fmt.Errorf("failed to connect to redis: %w", err)
 	}
 
-	err = server.ListenAndServe()
-	if err != nil {
-		return fmt.Errorf("failed to start server: %w", err)
-	}
+	ch := make(chan error, 1)
+
+	go func() {
+		defer close(ch)
+
+		err = server.ListenAndServe()
+		if err != nil {
+			ch <- fmt.Errorf("failed to start server: %w", err)
+		}
+
+		ch <- nil
+	}()
 
 	return nil
 }
