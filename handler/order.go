@@ -16,7 +16,7 @@ func (o *Order) List(w http.ResponseWriter, r *http.Request) {
 }
 
 func (o *Order) Get(w http.ResponseWriter, r *http.Request) {
-	fmt.Println("Get an order")
+	fmt.Println("Get an order: ", r.URL.Path)
 }
 
 func (o *Order) Update(w http.ResponseWriter, r *http.Request) {
