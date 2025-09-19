@@ -3,12 +3,14 @@ package handler
 import (
 	"fmt"
 	"net/http"
+
+	"github.com/FateevDev/orders-api/repository/order"
 )
 
 type Order struct{}
 
 func (o *Order) Create(w http.ResponseWriter, r *http.Request) {
-	fmt.Println("Create an order")
+	order.RedisRepository{}
 }
 
 func (o *Order) List(w http.ResponseWriter, r *http.Request) {
