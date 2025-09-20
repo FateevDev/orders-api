@@ -74,7 +74,7 @@ func (o *Order) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	const pageSize = 50
+	const pageSize = 3
 
 	all, err := o.Repository.FindAll(r.Context(), orderRepo.FindAllPage{
 		Size:   pageSize,

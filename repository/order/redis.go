@@ -40,7 +40,7 @@ func (r *RedisRepository) Insert(ctx context.Context, order model.Order) error {
 	defer txn.Discard()
 
 	setNxCmd := txn.SetNX(ctx, key, marshal, 0)
-	txn.SAdd(ctx, SetKey, key)
+	txn.ZAdd(ctx, SetKey, redis.Z{Score: float64(order.OrderID), Member: key})
 
 	_, err = txn.Exec(ctx)
 
@@ -85,7 +85,7 @@ type FindAllResult struct {
 }
 
 func (r *RedisRepository) FindAll(ctx context.Context, p FindAllPage) (FindAllResult, error) {
-	keys, cursor, err := r.Client.SScan(ctx, SetKey, p.Offest, "*", int64(p.Size)).Result()
+	keys, err := r.Client.ZRange(ctx, SetKey, int64(p.Offest), int64(p.Offest+p.Size-1)).Result()
 
 	if errors.Is(err, redis.Nil) {
 		return FindAllResult{}, ErrOrdersNotFound()
@@ -117,7 +117,7 @@ func (r *RedisRepository) FindAll(ctx context.Context, p FindAllPage) (FindAllRe
 		orderList[i] = order
 	}
 
-	return FindAllResult{orderList, cursor}, nil
+	return FindAllResult{orderList, p.Offest + uint64(len(keys))}, nil
 }
 
 func (r *RedisRepository) Delete(ctx context.Context, id uint64) error {
