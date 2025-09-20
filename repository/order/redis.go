@@ -27,6 +27,7 @@ func ErrOrdersNotFound() error {
 
 const SetKey = "orders"
 
+// Todo check commands results before transaction commit
 func (r *RedisRepository) Insert(ctx context.Context, order model.Order) error {
 	marshal, err := json.Marshal(order)
 
@@ -75,17 +76,55 @@ func (r *RedisRepository) FindById(ctx context.Context, id uint64) (model.Order,
 }
 
 type FindAllPage struct {
-	Size   uint64
-	Offest uint64
+	Limit  uint64
+	Offset uint64
 }
 
 type FindAllResult struct {
 	Orders []model.Order
-	Cursor uint64
+	Pagination
+}
+
+type Pagination struct {
+	Limit      uint64 `json:"limit"`
+	Offset     uint64 `json:"offset"`
+	Total      uint64 `json:"total"`
+	Page       uint64 `json:"page"`
+	TotalPages uint64 `json:"total_pages"`
 }
 
 func (r *RedisRepository) FindAll(ctx context.Context, p FindAllPage) (FindAllResult, error) {
-	keys, err := r.Client.ZRange(ctx, SetKey, int64(p.Offest), int64(p.Offest+p.Size-1)).Result()
+	totalCount, err := r.Client.ZCard(ctx, SetKey).Result()
+	if err != nil {
+		return FindAllResult{}, fmt.Errorf("failed to count orders: %w", err)
+	}
+
+	if totalCount == 0 {
+		return FindAllResult{
+			Orders: []model.Order{},
+			Pagination: Pagination{
+				Limit:      p.Limit,
+				Offset:     p.Offset,
+				Total:      0,
+				Page:       1,
+				TotalPages: 0,
+			},
+		}, nil
+	}
+
+	if p.Offset >= uint64(totalCount) {
+		return FindAllResult{
+			Orders:     []model.Order{},
+			Pagination: buildPagination(p.Limit, p.Offset, uint64(totalCount)),
+		}, nil
+	}
+
+	endIndex := int64(p.Offset + p.Limit - 1)
+	if endIndex >= totalCount {
+		endIndex = totalCount - 1
+	}
+
+	keys, err := r.Client.ZRange(ctx, SetKey, int64(p.Offset), endIndex).Result()
 
 	if errors.Is(err, redis.Nil) {
 		return FindAllResult{}, ErrOrdersNotFound()
@@ -94,11 +133,13 @@ func (r *RedisRepository) FindAll(ctx context.Context, p FindAllPage) (FindAllRe
 	}
 
 	if len(keys) == 0 {
-		return FindAllResult{}, nil
+		return FindAllResult{
+			Orders:     []model.Order{},
+			Pagination: buildPagination(p.Limit, p.Offset, uint64(totalCount)),
+		}, nil
 	}
 
 	result, err := r.Client.MGet(ctx, keys...).Result()
-
 	if err != nil {
 		return FindAllResult{}, fmt.Errorf("failed to get orders: %w", err)
 	}
@@ -117,7 +158,10 @@ func (r *RedisRepository) FindAll(ctx context.Context, p FindAllPage) (FindAllRe
 		orderList[i] = order
 	}
 
-	return FindAllResult{orderList, p.Offest + uint64(len(keys))}, nil
+	return FindAllResult{
+		Orders:     orderList,
+		Pagination: buildPagination(p.Limit, p.Offset, uint64(totalCount)),
+	}, nil
 }
 
 func (r *RedisRepository) Delete(ctx context.Context, id uint64) error {
@@ -162,4 +206,22 @@ func (r *RedisRepository) Update(ctx context.Context, id uint64, order model.Ord
 	}
 
 	return nil
+}
+
+func buildPagination(limit, offset, total uint64) Pagination {
+	var currentPage uint64 = 1
+	var totalPages uint64 = 0
+
+	if limit > 0 {
+		currentPage = (offset / limit) + 1
+		totalPages = (total + limit - 1) / limit // округление вверх
+	}
+
+	return Pagination{
+		Limit:      limit,
+		Offset:     offset,
+		Total:      total,
+		Page:       currentPage,
+		TotalPages: totalPages,
+	}
 }

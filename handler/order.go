@@ -62,23 +62,32 @@ func (o *Order) Create(w http.ResponseWriter, r *http.Request) {
 }
 
 func (o *Order) List(w http.ResponseWriter, r *http.Request) {
-	cursorStr := r.URL.Query().Get("cursor")
-
-	if cursorStr == "" {
-		cursorStr = "0"
-	}
-
-	cursor, err := strconv.ParseUint(cursorStr, 10, 64)
+	offset, err := getQueryParameter(w, r, "offset", "0")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	const pageSize = 3
+	limit, err := getQueryParameter(w, r, "limit", "10")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if limit == 0 {
+		http.Error(w, "limit must be greater than 0", http.StatusBadRequest)
+		return
+	}
+
+	const maxLimit = 100
+
+	if limit > maxLimit { // максимальный лимит
+		limit = maxLimit
+	}
 
 	all, err := o.Repository.FindAll(r.Context(), orderRepo.FindAllPage{
-		Size:   pageSize,
-		Offest: cursor,
+		Limit:  limit,
+		Offset: offset,
 	})
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -86,13 +95,13 @@ func (o *Order) List(w http.ResponseWriter, r *http.Request) {
 	}
 
 	type response struct {
-		Items []model.Order `json:"items"`
-		Next  uint64        `json:"next,omitempty"`
+		Items                []model.Order `json:"items"`
+		orderRepo.Pagination `json:"meta"`
 	}
 
 	marshal, err := json.Marshal(response{
-		Items: all.Orders,
-		Next:  all.Cursor,
+		Items:      all.Orders,
+		Pagination: all.Pagination,
 	})
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -129,4 +138,20 @@ func (o *Order) Delete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func getQueryParameter(w http.ResponseWriter, r *http.Request, queryParamName string, defaultValue string) (uint64, error) {
+	valueStr := r.URL.Query().Get(queryParamName)
+
+	if valueStr == "" {
+		valueStr = defaultValue
+	}
+
+	value, err := strconv.ParseUint(valueStr, 10, 64)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return 0, nil
+	}
+
+	return value, err
 }
