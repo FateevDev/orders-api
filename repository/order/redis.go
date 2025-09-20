@@ -37,19 +37,18 @@ func (r *RedisRepository) Insert(ctx context.Context, order model.Order) error {
 	key := orderIdKey(order.OrderID)
 
 	txn := r.Client.TxPipeline()
+	defer txn.Discard()
 
-	err = txn.SetNX(ctx, key, marshal, 0).Err()
+	setNxCmd := txn.SetNX(ctx, key, marshal, 0)
+	txn.SAdd(ctx, SetKey, key)
+
+	_, err = txn.Exec(ctx)
+
 	if err != nil {
-		txn.Discard()
 		return fmt.Errorf("failed to insert order: %w", err)
 	}
 
-	if err := txn.SAdd(ctx, SetKey, key).Err(); err != nil {
-		txn.Discard()
-		return fmt.Errorf("failed to add order to set: %w", err)
-	}
-
-	if _, err := txn.Exec(ctx); err != nil {
+	if setNxCmd.Err() != nil {
 		return fmt.Errorf("failed to insert order: %w", err)
 	}
 
