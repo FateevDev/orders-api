@@ -100,29 +100,25 @@ func (r *RedisRepository) FindAll(ctx context.Context, p FindAllPage) ([]model.O
 }
 
 func (r *RedisRepository) Delete(ctx context.Context, id uint64) error {
-	txn := r.Client.TxPipeline()
 	key := orderIdKey(id)
-	result, err := txn.Del(ctx, key).Result()
 
-	if errors.Is(err, redis.Nil) {
-		txn.Discard()
-		return ErrOrderWithIdNotFound(id)
-	} else if err != nil {
-		txn.Discard()
+	txn := r.Client.TxPipeline()
+	defer txn.Discard()
+
+	delCmd := txn.Del(ctx, key)
+	txn.SRem(ctx, SetKey, key)
+
+	_, err := txn.Exec(ctx)
+
+	if err != nil {
 		return fmt.Errorf("failed to delete order: %w", err)
 	}
 
+	result, err := delCmd.Result()
+
 	if result == 0 {
-		txn.Discard()
 		return ErrOrderWithIdNotFound(id)
-	}
-
-	if err := txn.SRem(ctx, SetKey, key).Err(); err != nil {
-		txn.Discard()
-		return fmt.Errorf("failed to remove order from set: %w", err)
-	}
-
-	if _, err := txn.Exec(ctx); err != nil {
+	} else if err != nil {
 		return fmt.Errorf("failed to delete order: %w", err)
 	}
 
