@@ -18,7 +18,7 @@ func (a *App) loadRoutes() {
 		w.Write([]byte("Hello World"))
 	})
 
-	router.Route("/orders", a.loadOrderRoutes)
+	router.Route("/api/orders", a.loadOrderRoutes)
 
 	a.router = router
 }
