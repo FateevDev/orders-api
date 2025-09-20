@@ -75,27 +75,49 @@ func (r *RedisRepository) FindById(ctx context.Context, id uint64) (model.Order,
 }
 
 type FindAllPage struct {
-	Size   uint
-	Offest uint
+	Size   uint64
+	Offest uint64
 }
 
-func (r *RedisRepository) FindAll(ctx context.Context, p FindAllPage) ([]model.Order, error) {
-	value, err := r.Client.GetRange(ctx, "order", int64(p.Offest), int64(p.Offest*p.Size)).Result()
+type FindAllResult struct {
+	Orders []model.Order
+	Cursor uint64
+}
+
+func (r *RedisRepository) FindAll(ctx context.Context, p FindAllPage) (FindAllResult, error) {
+	keys, cursor, err := r.Client.SScan(ctx, SetKey, p.Offest, "*", int64(p.Size)).Result()
 
 	if errors.Is(err, redis.Nil) {
-		return nil, ErrOrdersNotFound()
+		return FindAllResult{}, ErrOrdersNotFound()
 	} else if err != nil {
-		return nil, fmt.Errorf("failed to get orders: %w", err)
+		return FindAllResult{}, fmt.Errorf("failed to get orders: %w", err)
 	}
 
-	orderList := make([]model.Order, 0)
-	err = json.Unmarshal([]byte(value), &orderList)
+	if len(keys) == 0 {
+		return FindAllResult{}, nil
+	}
+
+	result, err := r.Client.MGet(ctx, keys...).Result()
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal orders: %w", err)
+		return FindAllResult{}, fmt.Errorf("failed to get orders: %w", err)
 	}
 
-	return orderList, nil
+	orderList := make([]model.Order, len(result))
+
+	for i, v := range result {
+		v := v.(string)
+		var order model.Order
+		err = json.Unmarshal([]byte(v), &order)
+
+		if err != nil {
+			return FindAllResult{}, fmt.Errorf("failed to unmarshal order: %w", err)
+		}
+
+		orderList[i] = order
+	}
+
+	return FindAllResult{orderList, cursor}, nil
 }
 
 func (r *RedisRepository) Delete(ctx context.Context, id uint64) error {
