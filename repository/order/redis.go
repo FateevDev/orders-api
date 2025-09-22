@@ -27,7 +27,6 @@ func ErrOrdersNotFound() error {
 
 const SetKey = "orders"
 
-// Todo check commands results before transaction commit
 func (r *RedisRepository) Insert(ctx context.Context, order model.Order) error {
 	marshal, err := json.Marshal(order)
 
