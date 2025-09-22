@@ -127,17 +127,17 @@ func (o *Order) Update(w http.ResponseWriter, r *http.Request) {
 func (o *Order) Delete(w http.ResponseWriter, r *http.Request) {
 	err := o.Repository.Delete(r.Context(), 1)
 
+	if err == nil {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
 	if errors.Is(err, orderRepo.ErrOrderWithIdNotFound(1)) {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
 
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	w.WriteHeader(http.StatusNoContent)
+	http.Error(w, err.Error(), http.StatusInternalServerError)
 }
 
 func getQueryParameter(w http.ResponseWriter, r *http.Request, queryParamName string, defaultValue string) (uint64, error) {
