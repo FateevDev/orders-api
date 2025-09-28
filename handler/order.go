@@ -11,6 +11,7 @@ import (
 
 	"github.com/FateevDev/orders-api/model"
 	orderRepo "github.com/FateevDev/orders-api/repository/order"
+	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 )
 
@@ -118,7 +119,38 @@ func (o *Order) List(w http.ResponseWriter, r *http.Request) {
 }
 
 func (o *Order) Get(w http.ResponseWriter, r *http.Request) {
-	fmt.Println("Get an order: ", r.URL.Path)
+	idParam := chi.URLParam(r, "id")
+
+	id, err := strconv.ParseUint(idParam, 10, 64)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	order, err := o.Repository.FindById(r.Context(), id)
+	if err != nil {
+		if errors.As(err, orderRepo.ErrOrderWithIdNotFound(id)) {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	marshal, err := json.Marshal(order)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_, err = w.Write(marshal)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+
 }
 
 func (o *Order) Update(w http.ResponseWriter, r *http.Request) {
