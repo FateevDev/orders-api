@@ -188,3 +188,29 @@ func getQueryParameter(w http.ResponseWriter, r *http.Request, queryParamName st
 
 	return value, err
 }
+
+func (o *Order) MockUserRequest(w http.ResponseWriter, r *http.Request) {
+	userIDParam := chi.URLParam(r, "user_id")
+	var response struct {
+		UserID   string `json:"user_id"`
+		Username string `json:"username"`
+		Email    string `json:"email"`
+	}
+
+	response.UserID = userIDParam
+	response.Username = "user_" + userIDParam
+	response.Email = response.Username + "@example.com"
+
+	marshal, err := json.Marshal(response)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_, err = w.Write(marshal)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}

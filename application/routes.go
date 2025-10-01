@@ -19,6 +19,7 @@ func (a *App) loadRoutes() {
 	})
 
 	router.Route("/api/orders", a.loadOrderRoutes)
+	router.Route("/api/v1/user", a.loadTestRoutes)
 
 	a.router = router
 }
@@ -35,4 +36,15 @@ func (a *App) loadOrderRoutes(router chi.Router) {
 	router.Get("/{id}", orderHandler.Get)
 	router.Put("/{id}", orderHandler.Update)
 	router.Delete("/{id}", orderHandler.Delete)
+	router.Get("/api/v1/user/{user_id}", orderHandler.MockUserRequest)
+}
+
+func (a *App) loadTestRoutes(router chi.Router) {
+	orderHandler := &handler.Order{
+		Repository: &order.RedisRepository{
+			Client: a.rdb,
+		},
+	}
+
+	router.Get("/{user_id}", orderHandler.MockUserRequest)
 }
