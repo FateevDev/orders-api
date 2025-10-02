@@ -4,8 +4,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"math/rand/v2"
 	"net/http"
+	"os"
 	"strconv"
 	"time"
 
@@ -190,26 +192,23 @@ func getQueryParameter(w http.ResponseWriter, r *http.Request, queryParamName st
 }
 
 func (o *Order) MockUserRequest(w http.ResponseWriter, r *http.Request) {
-	userIDParam := chi.URLParam(r, "user_id")
-	var response struct {
-		UserID   string `json:"user_id"`
-		Username string `json:"username"`
-		Email    string `json:"email"`
-	}
+	file, err := os.Open("response_mock.json")
 
-	response.UserID = userIDParam
-	response.Username = "user_" + userIDParam
-	response.Email = response.Username + "@example.com"
-
-	marshal, err := json.Marshal(response)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer file.Close()
+
+	content, fileErr := io.ReadAll(file)
+	if fileErr != nil {
+		http.Error(w, fileErr.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	_, err = w.Write(marshal)
+	_, err = w.Write(content)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
