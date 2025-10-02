@@ -4,10 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"math/rand/v2"
 	"net/http"
-	"os"
 	"strconv"
 	"time"
 
@@ -189,27 +187,4 @@ func getQueryParameter(w http.ResponseWriter, r *http.Request, queryParamName st
 	}
 
 	return value, err
-}
-
-func (o *Order) MockUserRequest(w http.ResponseWriter, r *http.Request) {
-	file, err := os.Open("response_mock.json")
-
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	defer file.Close()
-
-	content, fileErr := io.ReadAll(file)
-	if fileErr != nil {
-		http.Error(w, fileErr.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	_, err = w.Write(content)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-	}
 }
