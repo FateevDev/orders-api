@@ -173,6 +173,7 @@ func (o *Order) Delete(w http.ResponseWriter, r *http.Request) {
 	http.Error(w, err.Error(), http.StatusInternalServerError)
 }
 
+// add usage of https://github.com/go-playground/validator
 func getUint64QueryParameter(w http.ResponseWriter, r *http.Request, queryParamName string, defaultValue uint64) (uint64, error) {
 	valueStr := r.URL.Query().Get(queryParamName)
 
