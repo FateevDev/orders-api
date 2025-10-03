@@ -173,11 +173,11 @@ func (o *Order) Delete(w http.ResponseWriter, r *http.Request) {
 	http.Error(w, err.Error(), http.StatusInternalServerError)
 }
 
-func getQueryParameter(w http.ResponseWriter, r *http.Request, queryParamName string, defaultValue string) (uint64, error) {
+func getUint64QueryParameter(w http.ResponseWriter, r *http.Request, queryParamName string, defaultValue uint64) (uint64, error) {
 	valueStr := r.URL.Query().Get(queryParamName)
 
 	if valueStr == "" {
-		valueStr = defaultValue
+		return defaultValue
 	}
 
 	value, err := strconv.ParseUint(valueStr, 10, 64)
