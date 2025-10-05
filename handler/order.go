@@ -152,7 +152,68 @@ func (o *Order) Get(w http.ResponseWriter, r *http.Request) {
 }
 
 func (o *Order) Update(w http.ResponseWriter, r *http.Request) {
-	fmt.Println("Update an order")
+	id, err := getIdParam(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	order, err := o.Repository.FindById(r.Context(), id)
+	if err != nil {
+		if errors.Is(err, orderRepo.ErrOrderNotFound) {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	var body struct {
+		CustomerID uuid.UUID        `json:"customer_id" validate:"required"`
+		LineItems  []model.LineItem `json:"line_items" validate:"required,min=1"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	err = validation.Validate.Struct(body)
+	if err != nil {
+		errorMessages := formatValidationErrors(err)
+		response := map[string]interface{}{"errors": errorMessages}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(response)
+		return
+	}
+
+	order.LineItems = body.LineItems
+
+	err = o.Repository.Update(r.Context(), id, order)
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	marshal, err := json.Marshal(order)
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	_, err = w.Write(marshal)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
 }
 
 func (o *Order) Delete(w http.ResponseWriter, r *http.Request) {
