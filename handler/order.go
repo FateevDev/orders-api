@@ -165,6 +165,7 @@ func (o *Order) Update(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		CustomerID uuid.UUID        `json:"customer_id" validate:"required"`
 		LineItems  []model.LineItem `json:"line_items" validate:"required,min=1,dive"`
+		Status     string           `json:"status" validate:"required,order_status"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
@@ -184,6 +185,11 @@ func (o *Order) Update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	order.LineItems = body.LineItems
+	err = order.SetStatus(model.Status(body.Status))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 
 	err = o.Repository.Update(r.Context(), id, order)
 
