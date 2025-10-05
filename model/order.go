@@ -17,6 +17,6 @@ type Order struct {
 
 type LineItem struct {
 	ItemID   uuid.UUID `json:"item_id"`
-	Quantity uint64    `json:"quantity"`
-	Price    uint64    `json:"price"`
+	Quantity uint64    `json:"quantity" validate:"required,numeric,gte=0,lte=1000"`
+	Price    uint64    `json:"price" validate:"required,numeric,gte=0,lte=1000000"`
 }
