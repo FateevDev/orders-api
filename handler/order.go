@@ -73,13 +73,13 @@ func (o *Order) Create(w http.ResponseWriter, r *http.Request) {
 }
 
 func (o *Order) List(w http.ResponseWriter, r *http.Request) {
-	offset, err := getUint64QueryParameter(w, r, "offset", 0)
+	offset, err := getOffsetParam(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	limit, err := getUint64QueryParameter(w, r, "limit", 10)
+	limit, err := getLimitParam(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -128,9 +128,7 @@ func (o *Order) List(w http.ResponseWriter, r *http.Request) {
 }
 
 func (o *Order) Get(w http.ResponseWriter, r *http.Request) {
-	idParam := chi.URLParam(r, "id")
-
-	id, err := strconv.ParseUint(idParam, 10, 64)
+	id, err := getIdParam(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -182,18 +180,45 @@ func (o *Order) Delete(w http.ResponseWriter, r *http.Request) {
 	http.Error(w, err.Error(), http.StatusInternalServerError)
 }
 
-func getUint64QueryParameter(w http.ResponseWriter, r *http.Request, queryParamName string, defaultValue uint64) (uint64, error) {
+func getIdParam(r *http.Request) (uint64, error) {
+	idParam := chi.URLParam(r, "id")
+	id, err := strconv.ParseUint(idParam, 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("invalid id parameter: %w", err)
+	}
+
+	return id, nil
+}
+
+func getOffsetParam(r *http.Request) (uint64, error) {
+	return getUint64QueryParameter(r, "offset", 0, "min=0")
+}
+
+func getLimitParam(r *http.Request) (uint64, error) {
+	return getUint64QueryParameter(r, "limit", 0, "min=1,max=100")
+}
+
+func getUint64QueryParameter(r *http.Request, queryParamName string, defaultValue uint64, validateRules string) (uint64, error) {
 	valueStr := r.URL.Query().Get(queryParamName)
 
 	if valueStr == "" {
 		return defaultValue, nil
 	}
 
-	value, err := strconv.ParseUint(valueStr, 10, 64)
+	err := validate.Var(valueStr, "numeric")
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return 0, nil
+		return 0, fmt.Errorf("invalid %s parameter: %w", queryParamName, err)
 	}
 
-	return value, nil
+	value, err := strconv.ParseInt(valueStr, 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("invalid %s parameter: %w", queryParamName, err)
+	}
+
+	err = validate.Var(value, validateRules)
+	if err != nil {
+		return 0, fmt.Errorf("invalid %s parameter: %w", queryParamName, err)
+	}
+
+	return uint64(value), nil
 }
