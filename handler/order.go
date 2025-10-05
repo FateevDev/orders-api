@@ -11,15 +11,19 @@ import (
 
 	"github.com/FateevDev/orders-api/model"
 	orderRepo "github.com/FateevDev/orders-api/repository/order"
+	"github.com/FateevDev/orders-api/validation"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
 )
 
-var validate = validator.New(validator.WithRequiredStructEnabled())
-
 type Order struct {
 	Repository *orderRepo.RedisRepository
+}
+
+type FindAllPage struct {
+	Offset uint64 `validate:"min=0"`
+	Limit  uint64 `validate:"min=1,max=100"`
 }
 
 func (o *Order) Create(w http.ResponseWriter, r *http.Request) {
@@ -33,9 +37,14 @@ func (o *Order) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := validate.Struct(body)
+	err := validation.Validate.Struct(body)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		errorMessages := formatValidationErrors(err)
+		response := map[string]interface{}{"errors": errorMessages}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(response)
 		return
 	}
 
@@ -73,32 +82,14 @@ func (o *Order) Create(w http.ResponseWriter, r *http.Request) {
 }
 
 func (o *Order) List(w http.ResponseWriter, r *http.Request) {
-	offset, err := getOffsetParam(r)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+	params, hasValidationErrors := getPaginationParams(r, w)
+	if hasValidationErrors {
 		return
-	}
-
-	limit, err := getLimitParam(r)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	if limit == 0 {
-		http.Error(w, "limit must be greater than 0", http.StatusBadRequest)
-		return
-	}
-
-	const maxLimit = 100
-
-	if limit > maxLimit { // максимальный лимит
-		limit = maxLimit
 	}
 
 	all, err := o.Repository.FindAll(r.Context(), orderRepo.FindAllPage{
-		Limit:  limit,
-		Offset: offset,
+		Limit:  params.Limit,
+		Offset: params.Offset,
 	})
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -190,35 +181,45 @@ func getIdParam(r *http.Request) (uint64, error) {
 	return id, nil
 }
 
-func getOffsetParam(r *http.Request) (uint64, error) {
-	return getUint64QueryParameter(r, "offset", 0, "min=0")
+func getPaginationParams(r *http.Request, w http.ResponseWriter) (FindAllPage, bool) {
+	var params FindAllPage
+
+	offsetStr := r.URL.Query().Get("offset")
+	if offsetStr == "" {
+		offsetStr = "0" // Default value
+	}
+	offset, _ := strconv.ParseUint(offsetStr, 10, 64)
+	params.Offset = offset
+
+	limitStr := r.URL.Query().Get("limit")
+	if limitStr == "" {
+		limitStr = "10" // Default value
+	}
+	limit, _ := strconv.ParseUint(limitStr, 10, 64)
+	params.Limit = limit
+
+	err := validation.Validate.Struct(params)
+	if err != nil {
+		errorMessages := formatValidationErrors(err)
+		response := map[string]interface{}{"errors": errorMessages}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(response)
+		return FindAllPage{}, true
+	}
+	return params, false
 }
 
-func getLimitParam(r *http.Request) (uint64, error) {
-	return getUint64QueryParameter(r, "limit", 0, "min=1,max=100")
-}
+func formatValidationErrors(err error) map[string]string {
+	errorsMap := make(map[string]string)
 
-func getUint64QueryParameter(r *http.Request, queryParamName string, defaultValue uint64, validateRules string) (uint64, error) {
-	valueStr := r.URL.Query().Get(queryParamName)
-
-	if valueStr == "" {
-		return defaultValue, nil
+	var validationErrors validator.ValidationErrors
+	if errors.As(err, &validationErrors) {
+		for _, e := range validationErrors {
+			// The translator does all the work!
+			errorsMap[e.Field()] = e.Translate(validation.Trans)
+		}
 	}
-
-	err := validate.Var(valueStr, "numeric")
-	if err != nil {
-		return 0, fmt.Errorf("invalid %s parameter: %w", queryParamName, err)
-	}
-
-	value, err := strconv.ParseInt(valueStr, 10, 64)
-	if err != nil {
-		return 0, fmt.Errorf("invalid %s parameter: %w", queryParamName, err)
-	}
-
-	err = validate.Var(value, validateRules)
-	if err != nil {
-		return 0, fmt.Errorf("invalid %s parameter: %w", queryParamName, err)
-	}
-
-	return uint64(value), nil
+	return errorsMap
 }
