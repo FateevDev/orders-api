@@ -148,6 +148,10 @@ func (r *RedisRepository) FindAll(ctx context.Context, p FindAllPage) (FindAllRe
 	orderList := make([]model.Order, len(result))
 
 	for i, v := range result {
+		if v == nil {
+			continue
+		}
+
 		v := v.(string)
 		var order model.Order
 		err = json.Unmarshal([]byte(v), &order)
@@ -172,7 +176,7 @@ func (r *RedisRepository) Delete(ctx context.Context, id uint64) error {
 	defer txn.Discard()
 
 	delCmd := txn.Del(ctx, key)
-	txn.SRem(ctx, SetKey, key)
+	txn.ZRem(ctx, SetKey, key)
 
 	_, err := txn.Exec(ctx)
 

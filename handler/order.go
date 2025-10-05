@@ -156,7 +156,13 @@ func (o *Order) Update(w http.ResponseWriter, r *http.Request) {
 }
 
 func (o *Order) Delete(w http.ResponseWriter, r *http.Request) {
-	err := o.Repository.Delete(r.Context(), 1)
+	id, err := getIdParam(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	err = o.Repository.Delete(r.Context(), id)
 
 	if err == nil {
 		w.WriteHeader(http.StatusNoContent)
