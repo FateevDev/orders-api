@@ -18,8 +18,10 @@ func orderIdKey(id uint64) string {
 	return fmt.Sprintf("order:%d", id)
 }
 
+var ErrOrderNotFound = errors.New("order not found")
+
 func ErrOrderWithIdNotFound(id uint64) error {
-	return fmt.Errorf("order %d not found", id)
+	return fmt.Errorf("invalid order id \"%d\": %w", id, ErrOrderNotFound)
 }
 func ErrOrdersNotFound() error {
 	return errors.New("orders not found")

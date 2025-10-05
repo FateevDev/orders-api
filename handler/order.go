@@ -127,7 +127,7 @@ func (o *Order) Get(w http.ResponseWriter, r *http.Request) {
 
 	order, err := o.Repository.FindById(r.Context(), id)
 	if err != nil {
-		if errors.As(err, orderRepo.ErrOrderWithIdNotFound(id)) {
+		if errors.Is(err, orderRepo.ErrOrderNotFound) {
 			http.Error(w, err.Error(), http.StatusNotFound)
 			return
 		}
@@ -163,7 +163,7 @@ func (o *Order) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if errors.Is(err, orderRepo.ErrOrderWithIdNotFound(1)) {
+	if errors.Is(err, orderRepo.ErrOrderNotFound) {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
