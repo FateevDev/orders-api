@@ -136,19 +136,12 @@ func (o *Order) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	marshal, err := json.Marshal(order)
-	if err != nil {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(order); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	_, err = w.Write(marshal)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-	}
-
 }
 
 func (o *Order) Update(w http.ResponseWriter, r *http.Request) {
