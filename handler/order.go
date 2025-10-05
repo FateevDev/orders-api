@@ -12,8 +12,11 @@ import (
 	"github.com/FateevDev/orders-api/model"
 	orderRepo "github.com/FateevDev/orders-api/repository/order"
 	"github.com/go-chi/chi/v5"
+	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
 )
+
+var validate = validator.New(validator.WithRequiredStructEnabled())
 
 type Order struct {
 	Repository *orderRepo.RedisRepository
@@ -21,11 +24,17 @@ type Order struct {
 
 func (o *Order) Create(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		CustomerID uuid.UUID        `json:"customer_id"`
-		LineItems  []model.LineItem `json:"line_items"`
+		CustomerID uuid.UUID        `json:"customer_id" validate:"required"`
+		LineItems  []model.LineItem `json:"line_items" validate:"required,min=1"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	err := validate.Struct(body)
+	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -39,7 +48,7 @@ func (o *Order) Create(w http.ResponseWriter, r *http.Request) {
 		CreatedAt:  &now,
 	}
 
-	err := o.Repository.Insert(r.Context(), order)
+	err = o.Repository.Insert(r.Context(), order)
 
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -64,13 +73,13 @@ func (o *Order) Create(w http.ResponseWriter, r *http.Request) {
 }
 
 func (o *Order) List(w http.ResponseWriter, r *http.Request) {
-	offset, err := getQueryParameter(w, r, "offset", "0")
+	offset, err := getUint64QueryParameter(w, r, "offset", 0)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	limit, err := getQueryParameter(w, r, "limit", "10")
+	limit, err := getUint64QueryParameter(w, r, "limit", 10)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -173,12 +182,11 @@ func (o *Order) Delete(w http.ResponseWriter, r *http.Request) {
 	http.Error(w, err.Error(), http.StatusInternalServerError)
 }
 
-// add usage of https://github.com/go-playground/validator
 func getUint64QueryParameter(w http.ResponseWriter, r *http.Request, queryParamName string, defaultValue uint64) (uint64, error) {
 	valueStr := r.URL.Query().Get(queryParamName)
 
 	if valueStr == "" {
-		return defaultValue
+		return defaultValue, nil
 	}
 
 	value, err := strconv.ParseUint(valueStr, 10, 64)
@@ -187,5 +195,5 @@ func getUint64QueryParameter(w http.ResponseWriter, r *http.Request, queryParamN
 		return 0, nil
 	}
 
-	return value, err
+	return value, nil
 }
