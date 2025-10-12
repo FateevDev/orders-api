@@ -84,3 +84,4 @@ curl http://localhost:3000/api/orders
 
 * write tests to endpoints
 * create openapi specs for api
+* add repo interface and postgres implementation
