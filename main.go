@@ -11,7 +11,8 @@ import (
 )
 
 func main() {
-	app := application.New()
+	config := application.LoadConfig()
+	app := application.New(config)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
